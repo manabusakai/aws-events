@@ -13,6 +13,23 @@ const (
 	region = "ap-northeast-1"
 )
 
+func printInstanceName(svc *ec2.EC2, instanceId *string) (string, error) {
+	input := &ec2.DescribeInstancesInput{
+		InstanceIds: []*string{instanceId},
+	}
+	resp, err := svc.DescribeInstances(input)
+	if err != nil {
+		return "", err
+	}
+	tags := resp.Reservations[0].Instances[0].Tags
+	for _, elem := range tags {
+		if aws.StringValue(elem.Key) == "Name" {
+			return aws.StringValue(elem.Value), nil
+		}
+	}
+	return "", nil
+}
+
 func main() {
 	sess, err := session.NewSession(&aws.Config{Region: aws.String(region)})
 	if err != nil {
@@ -42,8 +59,16 @@ func main() {
 	}
 
 	for _, instance := range resp.InstanceStatuses {
+		name, err := printInstanceName(svc, instance.InstanceId)
+		if err != nil {
+			log.Fatal(err)
+		}
 		for _, event := range instance.Events {
-			fmt.Printf("%v: %v %v\n", *instance.InstanceId, *event.Code, *event.Description)
+			fmt.Printf("%v", *instance.InstanceId)
+			if name != "" {
+				fmt.Printf(" (%s)", name)
+			}
+			fmt.Printf(": %v %v\n", *event.Code, *event.Description)
 		}
 	}
 }
